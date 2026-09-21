@@ -200,4 +200,10 @@ async def wafcheck_plain():
 async def wafcheck_admin():
     """POST with 'admin' in path, no file upload."""
     return {"ok": True, "test": "admin_post_no_file"}
+
+@app.post("/api/v1/wafcheck_file")
+async def wafcheck_file(file: UploadFile = File(...)):
+    """POST with file upload, no 'admin' in path."""
+    content = await file.read()
+    return {"ok": True, "test": "plain_post_with_file", "bytes_received": len(content)}
 # --- END TEMPORARY DIAGNOSTIC ENDPOINTS ---
