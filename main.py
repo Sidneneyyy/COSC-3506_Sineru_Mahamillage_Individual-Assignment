@@ -12,8 +12,15 @@ from pydantic import BaseModel
 
 app = FastAPI(title="Course Catalog API")
 
+# ---------------------------------------------------------------------------
+# In-memory "database". Key = normalized course code (no spaces, uppercase).
+# ---------------------------------------------------------------------------
 courses_db: dict[str, dict] = {}
 
+
+# ---------------------------------------------------------------------------
+# Response schema
+# ---------------------------------------------------------------------------
 class Course(BaseModel):
     course_code: str
     title: str
@@ -21,6 +28,12 @@ class Course(BaseModel):
     prerequisites: List[str] = []
     cross_listed: List[str] = []
 
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+# Matches course codes like "COSC 2007", "COSC2007", "ITEC 3506"
 COURSE_CODE_PATTERN = re.compile(r"\b([A-Za-z]{2,5})\s*(\d{3,4})\b")
 
 
@@ -73,6 +86,7 @@ def parse_catalog_html(html: str) -> List[dict]:
     if not rows:
         raise ValueError("Table has no rows.")
 
+    # First row = headers
     header_cells = rows[0].find_all(["th", "td"])
     headers = [cell.get_text(strip=True) for cell in header_cells]
 
@@ -101,7 +115,7 @@ def parse_catalog_html(html: str) -> List[dict]:
 
         raw_code = cell_text(col_code)
         if not raw_code:
-            continue
+            continue  # skip blank rows
 
         code = normalize_code(raw_code)
         title = cell_text(col_title)
@@ -123,6 +137,11 @@ def parse_catalog_html(html: str) -> List[dict]:
         )
 
     return parsed_courses
+
+
+# ---------------------------------------------------------------------------
+# Endpoints
+# ---------------------------------------------------------------------------
 
 @app.post("/api/v1/admin/catalog/import")
 async def import_catalog(file: UploadFile = File(...)):
@@ -154,6 +173,7 @@ async def import_catalog(file: UploadFile = File(...)):
         "course_codes": list(courses_db.keys()),
     }
 
+
 @app.get("/api/v1/catalog/courses/{course_code}", response_model=Course)
 async def get_course(course_code: str):
     """Return a single course as strict JSON, by course code."""
@@ -163,6 +183,21 @@ async def get_course(course_code: str):
         raise HTTPException(status_code=404, detail=f"Course '{course_code}' not found.")
     return course
 
+
 @app.get("/")
 async def root():
     return {"status": "ok", "courses_loaded": len(courses_db)}
+
+
+# --- TEMPORARY DIAGNOSTIC ENDPOINTS: remove before final submission ---
+@app.post("/api/v1/wafcheck")
+async def wafcheck_plain():
+    """POST with no 'admin' in path, no file upload."""
+    return {"ok": True, "test": "plain_post"}
+
+
+@app.post("/api/v1/admin/wafcheck")
+async def wafcheck_admin():
+    """POST with 'admin' in path, no file upload."""
+    return {"ok": True, "test": "admin_post_no_file"}
+# --- END TEMPORARY DIAGNOSTIC ENDPOINTS ---
